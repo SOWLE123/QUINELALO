@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiniela Liga MX</title>
+ <style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #003300;
+    background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Soccer_field_-_empty.svg/2048px-Soccer_field_-_empty.svg.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    margin: 0;
+    padding: 0;
+    color: #fff;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 600px;
+    margin: auto;
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.6);
+    box-sizing: border-box;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 20px;
+  }
+
+  .instrucciones-box {
+    width: 100%;
+    max-width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  input, select, button {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+
+  button {
+    background-color: #28a745;
+    color: white;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background-color: #218838;
+  }
+
+  .mensaje {
+    margin-top: 20px;
+    padding: 12px;
+    font-weight: bold;
+    color: yellow;
+    background-color: rgba(0, 0, 0, 0.7);
+    text-align: center;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(255, 255, 0, 0.5);
+    font-size: 18px;
+  }
+
+  @media screen and (max-width: 480px) {
+    h1 {
+      font-size: 22px;
+    }
+
+    .instrucciones-box {
+      font-size: 16px;
+      padding: 15px;
+    }
+  }
+</style>
+
+</head>
+<body>
+  <div class="container">
+    <h1>Quiniela Liga MX</h1>
+
+    <div class="instrucciones-box" id="instrucciones">Cargando reglas...</div>
+    <p><strong>Participantes registrados:</strong> <span id="participantes">0</span></p>
+    <p><strong>Fecha límite:</strong> <span id="fechaLimite"></span></p>
+
+    <form id="formulario">
+      <label>Nombre:</label>
+      <input type="text" id="nombre" name="nombre" required><br><br>
+
+      <label>Código:</label>
+      <input type="text" id="codigo" name="codigo" required><br><br>
+
+      <div id="partidos"></div>
+
+      <label>Comodín:</label>
+      <select id="comodin" name="comodin" required></select><br><br>
+
+      <label>Total Goles:</label>
+      <input type="number" id="totalgoles" name="totalgoles" min="0" required><br><br>
+
+      <button type="submit">Enviar Quiniela</button>
+    </form>
+
+    <div id="mensaje" class="mensaje"></div>
+  </div>
+
+  <script>
+    const scriptURL = "https://script.google.com/macros/s/AKfycbwFeKZmLdjTDEyq229dBkgYiEv7nRzq4AoAAWccasx5ZIMH6iYU9scUHFVdHA8opnyN/exec";
+    let fechaLimiteISO = null;
+
+    async function cargarDatos() {
+      try {
+        const res = await fetch(scriptURL);
+        const data = await res.json();
+
+        document.getElementById("instrucciones").innerHTML = `<strong>Reglas:</strong><br>${data.reglas.replace(/\n/g, "<br>")}`;
+        document.getElementById("participantes").textContent = data.participantes;
+        document.getElementById("fechaLimite").textContent = new Date(data.fecha_limite).toLocaleString();
+        fechaLimiteISO = data.fecha_limite;
+
+        const partidosDiv = document.getElementById("partidos");
+        const comodinSelect = document.getElementById("comodin");
+
+        data.partidos.forEach((p, i) => {
+          const partido = document.createElement("div");
+          partido.className = "partido";
+          partido.innerHTML = `
+            <label>${p.local}</label>
+            <input type="number" name="gol_local_${i}" min="0" required>
+            vs
+            <input type="number" name="gol_visitante_${i}" min="0" required>
+            <label>${p.visitante}</label>
+          `;
+          partidosDiv.appendChild(partido);
+
+          const option = document.createElement("option");
+          option.value = i;
+          option.textContent = `${p.local} vs ${p.visitante}`;
+          comodinSelect.appendChild(option);
+        });
+
+      } catch (err) {
+        document.getElementById("mensaje").textContent = "Error al cargar datos.";
+        console.error(err);
+      }
+    }
+
+    document.getElementById("formulario").addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const ahora = new Date();
+      const limite = new Date(fechaLimiteISO);
+      if (ahora > limite) {
+        document.getElementById("mensaje").textContent = "Fecha límite superada. Ya no puedes enviar la quiniela.";
+        return;
+      }
+
+      const formData = new FormData(this);
+      const datos = new URLSearchParams();
+      for (const pair of formData) {
+        if (pair[1] === "") {
+          document.getElementById("mensaje").textContent = "Completa todos los campos.";
+          return;
+        }
+        datos.append(pair[0], pair[1]);
+      }
+
+      try {
+        const res = await fetch(scriptURL, {
+          method: "POST",
+          body: datos,
+        });
+        const result = await res.json();
+        document.getElementById("mensaje").textContent = result.mensaje;
+
+        if (result.mensaje.includes("éxito")) {
+          document.getElementById("formulario").reset();
+        }
+
+      } catch (err) {
+        document.getElementById("mensaje").textContent = "Error al enviar la quiniela.";
+        console.error(err);
+      }
+    });
+
+    cargarDatos();
+  </script>
+</body>
+</html>
